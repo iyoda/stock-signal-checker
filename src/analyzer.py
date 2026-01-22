@@ -16,6 +16,24 @@ class SignalType(Enum):
     HOLD = "hold"                  # 保持（シグナルなし）
 
 
+class EnhancedSignalType(Enum):
+    """強化シグナルの種類（移動平均シグナル + 損益率の組み合わせ）"""
+    PROFIT_TAKING = "profit_taking"        # 利益確定推奨（デッドクロス + 含み益大）
+    CONSIDER_SELL = "consider_sell"        # 売却検討（デッドクロス + 含み益小）
+    STOP_LOSS = "stop_loss"                # 損切り検討（デッドクロス + 含み損）
+    RECOVERY_SIGN = "recovery_sign"        # 回復兆候（ゴールデンクロス + 含み損）
+    UPTREND_CONTINUE = "uptrend_continue"  # 上昇継続（ゴールデンクロス + 含み益）
+    WATCH_CLOSELY = "watch_closely"        # 要注意（シグナルなし + 大幅含み損）
+    CONSIDER_PROFIT = "consider_profit"    # 利益確定検討（シグナルなし + 大幅含み益）
+    HOLD = "hold"                          # 通常保持
+
+
+# 損益率の閾値（デフォルト値）
+PROFIT_HIGH_THRESHOLD = 30.0    # 大幅含み益（利益確定検討）
+PROFIT_MID_THRESHOLD = 10.0     # 含み益（中）
+LOSS_HIGH_THRESHOLD = -15.0     # 大幅含み損（要注意）
+
+
 @dataclass
 class AnalysisResult:
     """分析結果を格納するデータクラス"""
@@ -28,6 +46,8 @@ class AnalysisResult:
     long_ma: float              # 長期移動平均
     signal: SignalType          # シグナル
     signal_strength: str        # シグナルの強さ（strong/weak）
+    enhanced_signal: EnhancedSignalType = EnhancedSignalType.HOLD  # 強化シグナル
+    action_message: str = ""    # 推奨アクションメッセージ
     
     @property
     def profit_loss(self) -> float:
@@ -38,6 +58,28 @@ class AnalysisResult:
     def is_sell_signal(self) -> bool:
         """売りシグナルかどうか"""
         return self.signal == SignalType.DEAD_CROSS
+    
+    @property
+    def has_enhanced_signal(self) -> bool:
+        """強化シグナルがあるかどうか（通常保持以外）"""
+        return self.enhanced_signal != EnhancedSignalType.HOLD
+    
+    @property
+    def is_action_recommended(self) -> bool:
+        """アクション推奨シグナルかどうか"""
+        return self.enhanced_signal in (
+            EnhancedSignalType.PROFIT_TAKING,
+            EnhancedSignalType.CONSIDER_SELL,
+            EnhancedSignalType.STOP_LOSS,
+        )
+    
+    @property
+    def is_watch_signal(self) -> bool:
+        """要注意シグナルかどうか"""
+        return self.enhanced_signal in (
+            EnhancedSignalType.WATCH_CLOSELY,
+            EnhancedSignalType.CONSIDER_PROFIT,
+        )
 
 
 def calculate_moving_average(
@@ -97,6 +139,68 @@ def detect_cross(
     return SignalType.HOLD
 
 
+def determine_enhanced_signal(
+    signal: SignalType,
+    profit_rate: float
+) -> tuple[EnhancedSignalType, str]:
+    """
+    移動平均シグナルと損益率から強化シグナルを判定する
+    
+    Args:
+        signal: 移動平均シグナル
+        profit_rate: 損益率（%）
+    
+    Returns:
+        (強化シグナル, アクションメッセージ) のタプル
+    """
+    # デッドクロス（売りシグナル）の場合
+    if signal == SignalType.DEAD_CROSS:
+        if profit_rate >= PROFIT_MID_THRESHOLD:
+            return (
+                EnhancedSignalType.PROFIT_TAKING,
+                "利益を確保しつつ売却検討"
+            )
+        elif profit_rate >= 0:
+            return (
+                EnhancedSignalType.CONSIDER_SELL,
+                "トレンド転換の可能性、売却を検討"
+            )
+        else:
+            return (
+                EnhancedSignalType.STOP_LOSS,
+                "損失拡大防止のため売却検討"
+            )
+    
+    # ゴールデンクロス（買いシグナル）の場合
+    if signal == SignalType.GOLDEN_CROSS:
+        if profit_rate < 0:
+            return (
+                EnhancedSignalType.RECOVERY_SIGN,
+                "上昇トレンド転換の可能性、継続保有"
+            )
+        else:
+            return (
+                EnhancedSignalType.UPTREND_CONTINUE,
+                "さらなる上昇期待、継続保有"
+            )
+    
+    # シグナルなしの場合でも損益率で判定
+    if profit_rate <= LOSS_HIGH_THRESHOLD:
+        return (
+            EnhancedSignalType.WATCH_CLOSELY,
+            "大幅な含み損、監視強化を推奨"
+        )
+    
+    if profit_rate >= PROFIT_HIGH_THRESHOLD:
+        return (
+            EnhancedSignalType.CONSIDER_PROFIT,
+            "大幅な含み益、部分売却も視野に"
+        )
+    
+    # 通常保持
+    return (EnhancedSignalType.HOLD, "")
+
+
 def calculate_signal_strength(
     short_ma: float,
     long_ma: float,
@@ -128,8 +232,8 @@ def analyze_stock(
     stock_code: str,
     stock_name: str,
     purchase_price: float,
-    short_period: int = 5,
-    long_period: int = 25
+    short_period: int = 25,
+    long_period: int = 75
 ) -> Optional[AnalysisResult]:
     """
     株価データを分析してシグナルを判定する
@@ -174,6 +278,9 @@ def analyze_stock(
         current_short_ma, current_long_ma, current_price
     )
     
+    # 強化シグナルを判定
+    enhanced_signal, action_message = determine_enhanced_signal(signal, profit_rate)
+    
     return AnalysisResult(
         stock_code=stock_code,
         stock_name=stock_name,
@@ -183,7 +290,9 @@ def analyze_stock(
         short_ma=current_short_ma,
         long_ma=current_long_ma,
         signal=signal,
-        signal_strength=signal_strength
+        signal_strength=signal_strength,
+        enhanced_signal=enhanced_signal,
+        action_message=action_message
     )
 
 
@@ -234,7 +343,7 @@ if __name__ == "__main__":
             print(f"現在価格: {result.current_price:.2f}円")
             print(f"購入価格: {result.purchase_price:.2f}円")
             print(f"損益率: {result.profit_rate:+.2f}%")
-            print(f"5日移動平均: {result.short_ma:.2f}")
-            print(f"25日移動平均: {result.long_ma:.2f}")
+            print(f"25日移動平均: {result.short_ma:.2f}")
+            print(f"75日移動平均: {result.long_ma:.2f}")
             print(f"シグナル: {result.signal.value}")
             print(f"シグナル強度: {result.signal_strength}")

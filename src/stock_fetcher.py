@@ -28,7 +28,7 @@ def convert_to_stooq_code(stock_code: str) -> str:
 
 def fetch_stock_data(
     stock_code: str,
-    period_days: int = 60
+    period_days: int = 120
 ) -> Optional[pd.DataFrame]:
     """
     指定した銘柄の株価データを取得する
@@ -101,7 +101,7 @@ def get_current_price(stock_code: str) -> Optional[float]:
 
 def fetch_multiple_stocks(
     stock_codes: list[str],
-    period_days: int = 60
+    period_days: int = 120
 ) -> dict[str, pd.DataFrame]:
     """
     複数銘柄の株価データを一括取得する

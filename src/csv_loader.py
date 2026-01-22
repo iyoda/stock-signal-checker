@@ -7,9 +7,9 @@ import csv
 from pathlib import Path
 from typing import Optional
 
-# デフォルトの移動平均線設定
-DEFAULT_SHORT_PERIOD = 20   # 短期: 1ヶ月（約20営業日）
-DEFAULT_LONG_PERIOD = 120   # 長期: 6ヶ月（約120営業日）
+# デフォルトの移動平均線設定（週1回チェック向け）
+DEFAULT_SHORT_PERIOD = 25   # 短期: 約1ヶ月（25営業日）
+DEFAULT_LONG_PERIOD = 75    # 長期: 約3ヶ月（75営業日）
 
 # CSVファイルのパターン
 CSV_PATTERN = "stockposition_*.csv"

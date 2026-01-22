@@ -8,7 +8,7 @@ import requests
 from typing import Optional
 from datetime import datetime
 
-from analyzer import AnalysisResult, SignalType
+from analyzer import AnalysisResult, SignalType, EnhancedSignalType
 
 
 def send_slack_notification(
@@ -48,6 +48,21 @@ def format_signal_emoji(signal: SignalType) -> str:
         return ":chart_with_upwards_trend:"    # 買いシグナル
     else:
         return ":heavy_minus_sign:"            # 保持
+
+
+def format_enhanced_signal_label(enhanced_signal: EnhancedSignalType) -> str:
+    """強化シグナルの表示ラベルを返す"""
+    labels = {
+        EnhancedSignalType.PROFIT_TAKING: "利益確定推奨",
+        EnhancedSignalType.CONSIDER_SELL: "売却検討",
+        EnhancedSignalType.STOP_LOSS: "損切り検討",
+        EnhancedSignalType.RECOVERY_SIGN: "回復兆候",
+        EnhancedSignalType.UPTREND_CONTINUE: "上昇継続",
+        EnhancedSignalType.WATCH_CLOSELY: "要注意",
+        EnhancedSignalType.CONSIDER_PROFIT: "利益確定検討",
+        EnhancedSignalType.HOLD: "",
+    }
+    return labels.get(enhanced_signal, "")
 
 
 def format_result_message(result: AnalysisResult) -> str:
@@ -116,32 +131,48 @@ def create_summary_message(
         ""
     ]
     
-    # 売りシグナルがある銘柄
-    sell_signals = [r for r in results if r.signal == SignalType.DEAD_CROSS]
-    if sell_signals:
-        lines.append(":rotating_light: *売りシグナル検出*")
-        for r in sell_signals:
+    # アクション推奨（売却系シグナル）
+    action_recommended = [r for r in results if r.is_action_recommended]
+    if action_recommended:
+        lines.append(":rotating_light: *アクション推奨*")
+        for r in action_recommended:
+            label = format_enhanced_signal_label(r.enhanced_signal)
             lines.append(f"  • {r.stock_name}: {r.current_price:,.0f}円 ({r.profit_rate:+.2f}%)")
+            lines.append(f"    【{label}】{r.action_message}")
         lines.append("")
     
-    # 買いシグナルがある銘柄
+    # 買いシグナル（回復兆候・上昇継続）
     buy_signals = [r for r in results if r.signal == SignalType.GOLDEN_CROSS]
     if buy_signals:
         lines.append(":star: *買いシグナル検出*")
         for r in buy_signals:
+            label = format_enhanced_signal_label(r.enhanced_signal)
             lines.append(f"  • {r.stock_name}: {r.current_price:,.0f}円 ({r.profit_rate:+.2f}%)")
+            if label:
+                lines.append(f"    【{label}】{r.action_message}")
         lines.append("")
     
-    # シグナルなし
-    no_signals = [r for r in results if r.signal == SignalType.HOLD]
+    # 要注意（シグナルなしだが損益率で警告）
+    watch_closely = [r for r in results if r.is_watch_signal]
+    if watch_closely and not sell_signals_only:
+        lines.append(":warning: *要注意*")
+        for r in watch_closely:
+            label = format_enhanced_signal_label(r.enhanced_signal)
+            lines.append(f"  • {r.stock_name}: {r.current_price:,.0f}円 ({r.profit_rate:+.2f}%)")
+            lines.append(f"    【{label}】{r.action_message}")
+        lines.append("")
+    
+    # シグナルなし（通常保持）
+    no_signals = [r for r in results if r.enhanced_signal == EnhancedSignalType.HOLD]
     if no_signals and not sell_signals_only:
         lines.append(":heavy_minus_sign: *シグナルなし*")
         for r in no_signals:
             lines.append(f"  • {r.stock_name}: {r.current_price:,.0f}円 ({r.profit_rate:+.2f}%)")
         lines.append("")
     
-    if not sell_signals and not buy_signals:
-        lines.append(":white_check_mark: 現在、シグナルが出ている銘柄はありません")
+    # サマリー
+    if not action_recommended and not buy_signals and not watch_closely:
+        lines.append(":white_check_mark: 現在、注目すべきシグナルはありません")
     
     return "\n".join(lines)
 
@@ -183,8 +214,6 @@ def notify_results(
 
 if __name__ == "__main__":
     # テスト用のダミーデータ
-    from analyzer import AnalysisResult, SignalType
-    
     test_results = [
         AnalysisResult(
             stock_code="7203.T",
