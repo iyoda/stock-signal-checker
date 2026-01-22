@@ -96,6 +96,9 @@ def load_portfolio_from_csv(
             except ValueError:
                 print(f"警告: {name} の取得単価が不正です: {row['平均取得単価']}")
                 continue
+            if purchase_price <= 0:
+                print(f"警告: {name} の取得単価が0以下です: {row['平均取得単価']}")
+                continue
             
             # 保有数
             try:

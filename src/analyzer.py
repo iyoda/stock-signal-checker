@@ -251,6 +251,9 @@ def analyze_stock(
     """
     if df is None or df.empty:
         return None
+    if purchase_price <= 0:
+        print(f"警告: {stock_code} の取得単価が0以下です: {purchase_price}")
+        return None
     
     # 移動平均を計算
     short_ma = calculate_moving_average(df, short_period)

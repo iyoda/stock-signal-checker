@@ -127,12 +127,12 @@ def create_summary_message(
     lines = [
         f":bell: *株式シグナルチェック結果*",
         f"実行日時: {now}",
-        f"チェック銘柄数: {len(results)}",
+        f"チェック銘柄数: {len(filtered)}",
         ""
     ]
     
     # アクション推奨（売却系シグナル）
-    action_recommended = [r for r in results if r.is_action_recommended]
+    action_recommended = [r for r in filtered if r.is_action_recommended]
     if action_recommended:
         lines.append(":rotating_light: *アクション推奨*")
         for r in action_recommended:
@@ -142,7 +142,7 @@ def create_summary_message(
         lines.append("")
     
     # 買いシグナル（回復兆候・上昇継続）
-    buy_signals = [r for r in results if r.signal == SignalType.GOLDEN_CROSS]
+    buy_signals = [r for r in filtered if r.signal == SignalType.GOLDEN_CROSS]
     if buy_signals:
         lines.append(":star: *買いシグナル検出*")
         for r in buy_signals:
@@ -153,7 +153,7 @@ def create_summary_message(
         lines.append("")
     
     # 要注意（シグナルなしだが損益率で警告）
-    watch_closely = [r for r in results if r.is_watch_signal]
+    watch_closely = [r for r in filtered if r.is_watch_signal]
     if watch_closely and not sell_signals_only:
         lines.append(":warning: *要注意*")
         for r in watch_closely:
@@ -163,7 +163,7 @@ def create_summary_message(
         lines.append("")
     
     # シグナルなし（通常保持）
-    no_signals = [r for r in results if r.enhanced_signal == EnhancedSignalType.HOLD]
+    no_signals = [r for r in filtered if r.enhanced_signal == EnhancedSignalType.HOLD]
     if no_signals and not sell_signals_only:
         lines.append(":heavy_minus_sign: *シグナルなし*")
         for r in no_signals:
