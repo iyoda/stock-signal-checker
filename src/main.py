@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from stock_fetcher import fetch_stock_data
 from analyzer import analyze_stock, AnalysisResult, SignalType
 from notifier import notify_results, create_summary_message
+from csv_loader import find_latest_csv, load_portfolio_from_csv, get_csv_info
 
 
 def load_portfolio(config_path: str) -> dict:
@@ -75,7 +76,9 @@ def check_signals(
             print(f"  チェック中: {name} ({code})...")
         
         # 株価データ取得
-        df = fetch_stock_data(code, period_days=long_period + 30)
+        # 営業日ベースの移動平均を計算するため、カレンダー日数で約1.5倍のデータが必要
+        period_days = int(long_period * 1.5) + 30
+        df = fetch_stock_data(code, period_days=period_days)
         
         if df is None:
             print(f"  警告: {name} ({code}) のデータを取得できませんでした")
@@ -143,6 +146,17 @@ def main():
         action='store_true',
         help='Slack通知せずに結果を表示のみ'
     )
+    parser.add_argument(
+        '--use-csv',
+        action='store_true',
+        help='data/ ディレクトリから最新のCSVファイルを使用'
+    )
+    parser.add_argument(
+        '--csv',
+        type=str,
+        metavar='PATH',
+        help='使用するCSVファイルのパスを指定'
+    )
     
     args = parser.parse_args()
     
@@ -152,13 +166,52 @@ def main():
     # スクリプトのディレクトリを基準にパスを解決
     script_dir = Path(__file__).parent.parent
     config_path = script_dir / args.config
+    data_dir = script_dir / 'data'
     
     print("=" * 60)
     print("Stock Signal Checker")
     print("=" * 60)
     
     # ポートフォリオ読み込み
-    portfolio = load_portfolio(str(config_path))
+    portfolio = None
+    
+    # CSVファイルからの読み込み
+    if args.csv:
+        # --csv オプションで直接指定
+        csv_path = Path(args.csv)
+        if not csv_path.is_absolute():
+            csv_path = script_dir / csv_path
+        
+        try:
+            csv_info = get_csv_info(csv_path)
+            print(f"\nCSVファイル: {csv_info['filename']}")
+            print(f"データ取得日時: {csv_info['timestamp']}")
+            portfolio = load_portfolio_from_csv(csv_path)
+        except (FileNotFoundError, ValueError) as e:
+            print(f"エラー: {e}")
+            sys.exit(1)
+    
+    elif args.use_csv:
+        # --use-csv オプションで data/ から自動検索
+        csv_path = find_latest_csv(data_dir)
+        
+        if csv_path is None:
+            print(f"エラー: {data_dir} にCSVファイルが見つかりません")
+            print("マネックス証券からダウンロードしたCSVファイルを data/ ディレクトリに配置してください")
+            sys.exit(1)
+        
+        try:
+            csv_info = get_csv_info(csv_path)
+            print(f"\nCSVファイル: {csv_info['filename']}")
+            print(f"データ取得日時: {csv_info['timestamp']}")
+            portfolio = load_portfolio_from_csv(csv_path)
+        except (FileNotFoundError, ValueError) as e:
+            print(f"エラー: {e}")
+            sys.exit(1)
+    
+    else:
+        # 従来通り YAML ファイルから読み込み
+        portfolio = load_portfolio(str(config_path))
     
     # シグナルチェック
     results = check_signals(portfolio, verbose=args.verbose)

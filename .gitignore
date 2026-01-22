@@ -42,3 +42,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# マネックス証券CSVファイル（個人情報）
+data/*.csv
