@@ -104,7 +104,7 @@ def calculate_moving_average(
 def detect_cross(
     short_ma: pd.Series,
     long_ma: pd.Series
-) -> Optional[SignalType]:
+) -> SignalType:
     """
     ゴールデンクロス/デッドクロスを検出する
     
@@ -267,8 +267,7 @@ def analyze_stock(
         return None
     
     # シグナル検出
-    detected_signal = detect_cross(short_ma, long_ma)
-    signal = detected_signal if detected_signal is not None else SignalType.HOLD
+    signal = detect_cross(short_ma, long_ma)
     
     # 損益率を計算
     profit_rate = (current_price - purchase_price) / purchase_price * 100

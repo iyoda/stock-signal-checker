@@ -4,6 +4,7 @@ Stooq.comを使用して日本株の株価データを取得する
 """
 
 import pandas as pd
+import time
 from datetime import datetime, timedelta
 from typing import Optional
 import requests
@@ -35,7 +36,7 @@ def fetch_stock_data(
     
     Args:
         stock_code: 銘柄コード（日本株は "7203.T" または "7203" 形式）
-        period_days: 取得する日数（デフォルト60日）
+        period_days: 取得する日数（デフォルト120日）
     
     Returns:
         株価データのDataFrame（Open, High, Low, Close, Volume）
@@ -101,7 +102,8 @@ def get_current_price(stock_code: str) -> Optional[float]:
 
 def fetch_multiple_stocks(
     stock_codes: list[str],
-    period_days: int = 120
+    period_days: int = 120,
+    delay: float = 0.5
 ) -> dict[str, pd.DataFrame]:
     """
     複数銘柄の株価データを一括取得する
@@ -109,16 +111,21 @@ def fetch_multiple_stocks(
     Args:
         stock_codes: 銘柄コードのリスト
         period_days: 取得する日数
+        delay: リクエスト間の遅延秒数（レート制限対策）
     
     Returns:
         銘柄コードをキー、DataFrameを値とする辞書
     """
     results = {}
     
-    for code in stock_codes:
+    for i, code in enumerate(stock_codes):
         df = fetch_stock_data(code, period_days)
         if df is not None:
             results[code] = df
+        
+        # 最後のリクエスト以外は遅延を入れる（レート制限対策）
+        if i < len(stock_codes) - 1:
+            time.sleep(delay)
     
     return results
 

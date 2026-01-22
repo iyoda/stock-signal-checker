@@ -50,7 +50,7 @@ def load_portfolio_from_csv(
     """
     マネックス証券のCSVファイルからポートフォリオを読み込む
     
-    CSVファイルはShift-JIS エンコーディングで保存されている
+    CSVファイルはcp932 (Windows-31J) エンコーディングで保存されている
     
     Args:
         csv_path: CSVファイルのパス
@@ -69,7 +69,7 @@ def load_portfolio_from_csv(
     
     stocks = []
     
-    with open(csv_path, 'r', encoding='shift_jis') as f:
+    with open(csv_path, 'r', encoding='cp932') as f:
         reader = csv.DictReader(f)
         
         # 必要な列が存在するか確認

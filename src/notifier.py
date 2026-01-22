@@ -91,8 +91,8 @@ def format_result_message(result: AnalysisResult) -> str:
         f"購入価格: {result.purchase_price:,.0f}円",
         f"損益率: {profit_emoji} {result.profit_rate:+.2f}%",
         f"",
-        f"5日MA: {result.short_ma:,.0f}円",
-        f"25日MA: {result.long_ma:,.0f}円",
+        f"短期MA: {result.short_ma:,.0f}円",
+        f"長期MA: {result.long_ma:,.0f}円",
         f"",
         f"*シグナル*: {signal_text[result.signal]}",
         f"シグナル強度: {result.signal_strength}"
